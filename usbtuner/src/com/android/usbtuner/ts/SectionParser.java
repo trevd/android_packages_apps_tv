@@ -1245,7 +1245,9 @@ public class SectionParser {
         }
         return true;
     }
-    public static String bytesToStringUTFCustom(byte[] bytes) {
+
+    /* Print Section for Debug purposes */
+    public static String bytesToStringAscii(byte[] bytes) {
         char[] buffer = new char[bytes.length >> 1];
         for(int i = 0; i < buffer.length; i++) {
             char c = (char)bytes[i];
@@ -1257,12 +1259,32 @@ public class SectionParser {
         // For details of the structure for SDT, see DVB-SI A/38 Table 5
         if (DEBUG) {
             Log.d(TAG, "SDT is discovered.");
+            Log.d(TAG, bytesToStringAscii(data));
         }
         //if (data.length <= 9) {
         //    Log.e(TAG, "Broken VCT.");
         //    return false;
         //}
-        Log.i(TAG, bytesToStringUTFCustom(data));
+
+        int tableid = data[0];
+        Log.d(TAG, "Section Length:" + data[1]);
+        //int section_syntax_indicator = ((data[1] & 0xff) << 8);
+
+
+        /*for (; pos < data.length - 4; pos = pos + 4) {
+            if (pos > data.length - 4 - 4) {
+                Log.e(TAG, "Broken SDT.");
+                return false;
+            }
+            int programNo = ((data[pos] & 0xff) << 8) | (data[pos + 1] & 0xff);
+            int pmtPid = ((data[pos + 2] & 0x1f) << 8) | (data[pos + 3] & 0xff);
+            Log.d(TAG, "pmtPID=" + pmtPid + " programNo=" + programNo);
+            results.add(new PatItem(programNo, pmtPid));
+
+        }
+        if (mListener != null) {
+            mListener.onPatParsed(results);
+        }*/
         return false;
 
     }
