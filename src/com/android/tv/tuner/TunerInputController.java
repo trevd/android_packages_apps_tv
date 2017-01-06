@@ -54,7 +54,8 @@ public class TunerInputController extends BroadcastReceiver {
 
     private static final TunerDevice[] TUNER_DEVICES = {
         new TunerDevice(0x2040, 0xb123),  // WinTV-HVR-955Q
-        new TunerDevice(0x07ca, 0x0837)   // AverTV Volar Hybrid Q
+        new TunerDevice(0x07ca, 0x0837),   // AverTV Volar Hybrid Q
+        new TunerDevice(0x2013, 0x0258)   // PCTV 461e (DVB-S2)
     };
 
     private static final int MSG_ENABLE_INPUT_SERVICE = 1000;
