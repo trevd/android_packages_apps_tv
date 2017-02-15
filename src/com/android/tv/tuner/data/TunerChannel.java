@@ -54,6 +54,40 @@ public class TunerChannel implements Comparable<TunerChannel>, PsipData.TvTracks
             "Extended Parameterized Service" };
     private static final String ATSC_SERVICE_TYPE_NAME_RESERVED =
             ATSC_SERVICE_TYPE_NAMES[Channel.SERVICE_TYPE_ATSC_RESERVED];
+            
+     // See DVB Service type coding 
+    private static final String[] DVB_SERVICE_TYPE_NAMES = new String[] {
+			"DVB Reserved",
+            "digital television service",
+			"digital radio sound service",
+			"Teletext service",
+			"NVOD reference service",
+			"NVOD time-shifted service",
+			"mosaic service",
+			"FM radio service",
+			"DVB SRM service",
+			"reserved for future use",
+			"advanced codec digital radio sound service",
+			"H.264/AVC mosaic service",
+			"data broadcast service",
+			"RCS Map",
+			"RCS FLS",
+			"DVB MHP service",
+			"MPEG-2 HD digital television service",
+			"to 0x15 reserved for future use",
+			"H.264/AVC SD digital television service",
+			"H.264/AVC SD NVOD time-shifted service",
+			"H.264/AVC SD NVOD reference service",
+			"H.264/AVC HD digital television service",
+			"H.264/AVC HD NVOD time-shifted service",
+			"H.264/AVC HD NVOD reference service",
+			"H.264/AVC frame compatible plano-stereoscopic HD digital television service",
+			"H.264/AVC frame compatible plano-stereoscopic HD NVOD time-shifted",
+			"H.264/AVC frame compatible plano-stereoscopic HD NVOD reference service",
+			"HEVC digital television service",
+	};
+    private static final String DVB_SERVICE_TYPE_NAME_RESERVED =
+            DVB_SERVICE_TYPE_NAMES[Channel.SERVICE_TYPE_DVB_RESERVED];
 
     public static final int INVALID_FREQUENCY = -1;
 
@@ -67,13 +101,16 @@ public class TunerChannel implements Comparable<TunerChannel>, PsipData.TvTracks
 
     private TunerChannel(PsipData.VctItem channel, int programNumber,
             List<PsiData.PmtItem> pmtItems, int type) {
+				
+		Log.d(TAG, "Adding TunerChannel programNumber=" + programNumber);
         mProto = new TunerChannelProto();
         if (channel == null) {
-            mProto.shortName = "";
+            mProto.shortName = Integer.toString(programNumber);
             mProto.tsid = 0;
             mProto.programNumber = programNumber;
             mProto.virtualMajor = 0;
             mProto.virtualMinor = 0;
+            mProto.serviceType = 1;
         } else {
             mProto.shortName = channel.getShortName();
             if (channel.getLongName() != null) {

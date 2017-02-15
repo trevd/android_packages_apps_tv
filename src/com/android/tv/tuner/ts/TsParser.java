@@ -25,6 +25,7 @@ import com.android.tv.tuner.data.PsiData.PmtItem;
 import com.android.tv.tuner.data.PsipData.EitItem;
 import com.android.tv.tuner.data.PsipData.EttItem;
 import com.android.tv.tuner.data.PsipData.MgtItem;
+import com.android.tv.tuner.data.PsipData.SdtItem;
 import com.android.tv.tuner.data.PsipData.VctItem;
 import com.android.tv.tuner.data.TunerChannel;
 import com.android.tv.tuner.ts.SectionParser.OutputListener;
@@ -42,10 +43,13 @@ import java.util.TreeSet;
  */
 public class TsParser {
     private static final String TAG = "TsParser";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     public static final int ATSC_SI_BASE_PID = 0x1ffb;
     public static final int PAT_PID = 0x0000;
+    public static final int CAT_PID = 0x0001;
+    public static final int SDT_PID = 0x0011;
+    //public static final int PMT_PID = 0x0012;
     private static final int TS_PACKET_START_CODE = 0x47;
     private static final int TS_PACKET_TEI_MASK = 0x80;
     private static final int TS_PACKET_SIZE = 188;
@@ -63,12 +67,14 @@ public class TsParser {
     private final Map<Integer, String> mSourceIdToVctItemDescriptionMap = new HashMap<>();
     private final Map<Integer, VctItem> mProgramNumberToVctItemMap = new HashMap<>();
     private final Map<Integer, List<PmtItem>> mProgramNumberToPMTMap = new HashMap<>();
+    private final Map<Integer, SdtItem> mProgramNumberToSDTItemMap = new HashMap<>();
     private final Map<Integer, List<EitItem>> mSourceIdToEitMap = new HashMap<>();
     private final Map<EventSourceEntry, List<EitItem>> mEitMap = new HashMap<>();
     private final Map<EventSourceEntry, List<EttItem>> mETTMap = new HashMap<>();
     private final TreeSet<Integer> mEITPids = new TreeSet<>();
     private final TreeSet<Integer> mETTPids = new TreeSet<>();
     private final SparseBooleanArray mProgramNumberHandledStatus = new SparseBooleanArray();
+    private final SparseBooleanArray mSDTHandledStatus = new SparseBooleanArray();
     private final SparseBooleanArray mVctItemHandledStatus = new SparseBooleanArray();
     private final TsOutputListener mListener;
 
@@ -79,6 +85,8 @@ public class TsParser {
 
     public interface TsOutputListener {
         void onPatDetected(List<PatItem> items);
+        void onSdtItemDetected(SdtItem items,List<PmtItem> pmtItems);
+        void onPmtParsed(int programNumber, List<PmtItem> pmtItems);
         void onEitPidDetected(int pid);
         void onVctItemParsed(VctItem channel, List<PmtItem> pmtItems);
         void onEitItemParsed(VctItem channel, List<EitItem> items);
@@ -109,6 +117,9 @@ public class TsParser {
         private final int mPid;
 
         public SectionStream(int pid) {
+			if (DEBUG) {
+				Log.d(TAG, "SectionStream, pid=" + pid);
+			}
             mPid = pid;
             mSectionParser = new SectionParser(mSectionListener);
         }
@@ -139,8 +150,11 @@ public class TsParser {
         }
 
         private final OutputListener mSectionListener = new OutputListener() {
+			
+			
             @Override
             public void onPatParsed(List<PatItem> items) {
+				Log.d(TAG, "onPatParsed");
                 for (PatItem i : items) {
                     startListening(i.getPmtPid());
                 }
@@ -149,8 +163,48 @@ public class TsParser {
                 }
             }
 
+			@Override
+            public void onSdtParsed(List<SdtItem> items) {
+				Log.d(TAG, "onSDTParsed");
+                for (SdtItem i : items) {
+					int statusIndex = mSDTHandledStatus.indexOfKey(i.getServiceId());
+					if (statusIndex < 0) {
+						mSDTHandledStatus.put(i.getServiceId(), true);
+					}
+                    
+                    int programNumber = i.getServiceId();
+                    mProgramNumberToSDTItemMap.put(programNumber, i);
+                    List<PmtItem> pmtList = mProgramNumberToPMTMap.get(programNumber);
+                    if (pmtList != null) {
+						Log.d(TAG, "onSDTParsed : programNumber:" + programNumber + "pmtList=" + pmtList.size());
+                        //mProgramNumberHandledStatus.put(programNumber, true);
+                        //handleSdtItem(i, pmtList);
+                        //mHandledSdtItemCount++;
+                        //if (mHandledVctItemCount >= mSdtItemCount
+                        //        && mVctSectionParsedCount >= mVctSectionParsed.length
+                        //        && mListener != null) {
+                        //    mListener.onAllVctItemsParsed();
+                        //}
+                    } else {
+                        mProgramNumberHandledStatus.put(programNumber, false);
+                        Log.i(TAG, "onSDTParsed, but PMT for programNo " + programNumber
+                                + " is not found yet.");
+                    }
+                    //if (mListener != null) {
+					//	mListener.onSdtDetected(items);
+					//}
+                }
+				
+                
+            }
+
+
             @Override
             public void onPmtParsed(int programNumber, List<PmtItem> items) {
+				Log.d(TAG, "onPmtParsed programNumber=" + programNumber + " items=" + items.size());
+				for (PmtItem i : items) {
+					Log.d(TAG,"PmtItem: programNumber=" + programNumber + ":" + i.toString());
+                }
                 mProgramNumberToPMTMap.put(programNumber, items);
                 if (DEBUG) {
                     Log.d(TAG, "onPMTParsed, programNo " + programNumber + " handledStatus is "
@@ -161,6 +215,16 @@ public class TsParser {
                     mProgramNumberHandledStatus.put(programNumber, false);
                 }
                 if (!mProgramNumberHandledStatus.get(programNumber)) {
+					
+                    SdtItem sdtItem = mProgramNumberToSDTItemMap.get(programNumber);
+                    if (sdtItem != null) {
+                        // When PMT is parsed later than SDT.
+                        Log.d(TAG, "Late PMT Parsing For ProgramNumber:" + programNumber);
+                        mProgramNumberHandledStatus.put(programNumber, true);
+                        //handleSDTItem(vctItem, items);
+                    }
+                        
+                    mListener.onPmtParsed(programNumber, items);
                     VctItem vctItem = mProgramNumberToVctItemMap.get(programNumber);
                     if (vctItem != null) {
                         // When PMT is parsed later than VCT.
@@ -376,11 +440,26 @@ public class TsParser {
      * @param listener TsOutputListener
      */
     public TsParser(TsOutputListener listener) {
-        startListening(ATSC_SI_BASE_PID);
+       // startListening(ATSC_SI_BASE_PID);
+        startListening(SDT_PID);
         startListening(PAT_PID);
         mListener = listener;
     }
+    
+  /*  public static ATSCTsParser(TsOutputListener listener) {
+		TsParser parser = TsParser(listener);
+		startListening(ATSC_SI_BASE_PID);
+        
+        startListening(PAT_PID);
+	}
 
+    public static ATSCTsParser(TsOutputListener listener) {
+		TsParser parser = TsParser(listener);
+		startListening(PAT_PID);
+		startListening(SDT_PID);    
+        
+	}
+*/
     private void startListening(int pid) {
         mStreamMap.put(pid, new SectionStream(pid));
     }

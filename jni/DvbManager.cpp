@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
@@ -30,6 +31,11 @@
 #include "logging.h"
 
 #include "DvbManager.h"
+
+#define SLOF (11700*1000UL)
+#define LOF1 (9750*1000UL)
+#define LOF2 (10600*1000UL)
+
 
 static double currentTimeMillis() {
     struct timeval tv;
@@ -276,6 +282,13 @@ int DvbManager::openDvbDvr(JNIEnv *env, jobject thiz) {
     }
     return 0;
 }
+int DvbManager::openDvbDemux(JNIEnv *env, jobject thiz) {
+    if ((mDemuxFd = openDvbDemuxFromSystemApi(env, thiz)) < 0) {
+        ALOGD("Can't open DMX file : %s", strerror(errno));
+        return -1;
+    }
+    return 0;
+}
 
 void DvbManager::closeDvbFe() {
     if (mFeFd != -1) {
@@ -290,10 +303,18 @@ void DvbManager::closeDvbDvr() {
         mDvrFd = -1;
     }
 }
+void DvbManager::closeDvbDemux() {
+    if (mDemuxFd != -1) {
+        close(mDemuxFd);
+        mDemuxFd = -1;
+    }
+}
+
 
 void DvbManager::reset() {
     mFeHasLock = false;
     closeDvbDvr();
+    closeDvbDemux();
     closeAllDvbPidFilter();
     closePatFilter();
     closeDvbFe();
@@ -302,6 +323,7 @@ void DvbManager::reset() {
 void DvbManager::resetExceptFe() {
     mFeHasLock = false;
     closeDvbDvr();
+    closeDvbDemux();
     closeAllDvbPidFilter();
     closePatFilter();
 }
@@ -316,7 +338,9 @@ int DvbManager::readTsStream(JNIEnv *env, jobject thiz,
     if (mDvrFd == -1) {
         openDvbDvr(env, thiz);
     }
-
+   if (mDemuxFd == -1) {
+        openDvbDemux(env, thiz);
+    }
     struct pollfd pollFd;
     pollFd.fd = mDvrFd;
     pollFd.events = POLLIN|POLLPRI|POLLERR;
@@ -337,3 +361,199 @@ int DvbManager::readTsStream(JNIEnv *env, jobject thiz,
 void DvbManager::setHasPendingTune(bool hasPendingTune) {
     mHasPendingTune = hasPendingTune;
 }
+
+
+int DvbManager::clearDvbCmdSeq() {
+
+	Mutex::Autolock autoLock(mFilterLock);
+	struct dtv_property p[] = {
+		{ .cmd = DTV_CLEAR },
+	};
+
+	struct dtv_properties cmdseq = {
+		.num = 1,
+		.props = p
+	};
+
+	if ((ioctl(mFeFd, FE_SET_PROPERTY, &cmdseq)) == -1) {
+		ALOGE("FE_SET_PROPERTY DTV_CLEAR failed");
+		return -1;
+	}
+	return 0;
+}
+
+int DvbManager::tuneV5(unsigned int ifreq, unsigned int sr, unsigned int delsys,
+		    unsigned int modulation,  unsigned int  v,  unsigned int  fec, unsigned int rolloff)
+{
+	struct dvb_frontend_event ev;
+	struct dtv_property p[] = {
+		{ .cmd = DTV_DELIVERY_SYSTEM,	.u.data = delsys },
+		{ .cmd = DTV_FREQUENCY,		.u.data = ifreq },
+		{ .cmd = DTV_MODULATION,	.u.data = modulation },
+		{ .cmd = DTV_SYMBOL_RATE,	.u.data = sr },
+		{ .cmd = DTV_INNER_FEC,		.u.data = fec },
+		{ .cmd = DTV_VOLTAGE,		.u.data = v },
+		{ .cmd = DTV_INVERSION,		.u.data = INVERSION_AUTO },
+		{ .cmd = DTV_ROLLOFF,		.u.data = rolloff },
+		{ .cmd = DTV_PILOT,		.u.data = PILOT_AUTO },
+		{ .cmd = DTV_TUNE },
+	};
+	struct dtv_properties cmdseq = {
+		.num = 10,
+		.props = p
+	};
+
+	/* discard stale QPSK events */
+	while (1) {
+		if (ioctl(mFeFd, FE_GET_EVENT, &ev) == -1)
+		break;
+	}
+
+	if ((delsys != SYS_DVBS) && (delsys != SYS_DVBS2))
+		return -EINVAL;
+
+	if ((ioctl(mFeFd, FE_SET_PROPERTY, &cmdseq)) == -1) {
+		perror("FE_SET_PROPERTY failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+int DvbManager::tuneDVB(JNIEnv *env, jobject thiz, const int deliverysystem, const int frequency, const char *polarizationStr, int symbolrate, const char *fecStr, const double rolloff, const char *modulationStr, int timeout_ms) 
+{
+    resetExceptFe();
+	ALOGD("tuneDVB deliverysystem: %d", deliverysystem);
+    if (mHasPendingTune) {
+        return -1;
+    }
+    if (openDvbFe(env, thiz) != 0) {
+        return -1;
+    }
+
+	clearDvbCmdSeq();
+	
+	uint32_t real_frequency = 0;
+	int hiband = 0;
+	if(frequency >= SLOF)
+		hiband = 1;
+	
+	if (hiband)
+		real_frequency = frequency - LOF2;
+	else {
+		if (frequency < LOF1)
+			real_frequency = LOF1 - frequency;
+		else
+			real_frequency = frequency - LOF1;
+	}
+	ALOGD("tuneDVB real_frequency: %u", real_frequency);
+	
+    fe_sec_voltage_t voltage = voltage = SEC_VOLTAGE_OFF;
+    char polarization;
+    if (toupper(polarizationStr[0]) == 'V') {
+		voltage = SEC_VOLTAGE_13;
+		ALOGD("tuneDVB voltage: SEC_VOLTAGE_13");
+	} else {
+		voltage = SEC_VOLTAGE_18;
+		ALOGD("tuneDVB voltage: SEC_VOLTAGE_18");
+	}
+	
+	fe_delivery_system delsys = SYS_UNDEFINED ;
+	if ( deliverysystem == 2 ) {
+		delsys = SYS_DVBS;
+		ALOGD("tuneDVB deliverysystem: SYS_DVBS");
+	} else {
+		delsys = SYS_DVBS2;
+		ALOGD("tuneDVB deliverysystem: SYS_DVBS22");
+	}
+	fe_modulation modulation;
+    if (strcmp(modulationStr, "QPSK") == 0) {
+        modulation = QPSK;
+        ALOGD("tuneDVB modulation = QPSK");
+    } else if (strcmp(modulationStr, "8PSK") == 0) {
+        modulation = PSK_8;
+         ALOGD("tuneDVB modulation = 8PSK");
+	}
+	
+	fe_code_rate fec = FEC_NONE;
+    if (strcmp(fecStr, "5/6") == 0) {
+        fec = FEC_5_6;
+        ALOGD("tuneDVB fec = FEC_5_6;");
+    }
+	
+	tuneV5(real_frequency, symbolrate, delsys, modulation, voltage, fec, ROLLOFF_35);
+
+
+
+    int lockSuccessCount = 0;
+    double tuneClock = currentTimeMillis();
+    while (currentTimeMillis() - tuneClock < timeout_ms) {
+        if (mHasPendingTune) {
+            // Return 0 here since we already call FE_SET_FRONTEND, and return due to having pending
+            // tune request. And the frontend setting could be successful.
+            mFeHasLock = true;
+            return 0;
+        }
+        bool lockStatus = isFeLocked();
+        if (lockStatus) {
+            lockSuccessCount++;
+        } else {
+            lockSuccessCount = 0;
+        }
+        ALOGI("Lock status : %s", lockStatus ? "true" : "false");
+        if (lockSuccessCount >= FE_CONSECUTIVE_LOCK_SUCCESS_COUNT) {
+            mFeHasLock = true;
+            openDvbDvr(env, thiz);
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+int DvbManager::startSectionFilter(JNIEnv *env, jobject thiz, int pid, int tid) {
+    Mutex::Autolock autoLock(mFilterLock);
+
+//    if (mPidFilters.find(pid) != mPidFilters.end() || (mPatFilterFd != -1 && pid == PAT_PID)) {
+//        return 0;
+//    }
+
+    if (mHasPendingTune) {
+        return -1;
+    }
+
+
+    if ((openDvbDemux(env, thiz)) < 0) {
+        ALOGD("Can't open DEMUX file : %s", strerror(errno));
+        return -1;
+    }
+
+	struct dmx_sct_filter_params sctfilter;
+	memset(&sctfilter, 0, sizeof(struct dmx_sct_filter_params));
+
+	sctfilter.pid = pid;
+	sctfilter.flags = DMX_IMMEDIATE_START;
+	sctfilter.timeout = 0;
+
+	if (tid < 0x100 && tid > 0) {
+		sctfilter.filter.filter[0] = (uint8_t) tid;
+		sctfilter.filter.mask[0]   = 0xff;
+	}
+
+	sctfilter.timeout = 0;
+	sctfilter.flags = DMX_IMMEDIATE_START | DMX_CHECK_CRC;
+
+	if (ioctl(mDemuxFd, DMX_SET_FILTER, &sctfilter) == -1) {
+		ALOGE("ioctl DMX_SET_FILTER failed");
+		close(mDemuxFd);
+	}
+
+    if (pid != PAT_PID) {
+        mPidFilters.insert(std::pair<int, int>(pid, mDemuxFd));
+    } else {
+        mPatFilterFd = mDemuxFd;
+    }
+
+    return 0;
+}
+

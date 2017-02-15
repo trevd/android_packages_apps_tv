@@ -24,13 +24,13 @@ import android.util.Log;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Objects;
-
+import com.android.tv.tuner.ChannelScanFileParser.ScanChannel.DeliverySystem;
 /**
  * A base class to handle a hardware tuner device.
  */
 public abstract class TunerHal implements AutoCloseable {
     protected static final String TAG = "TunerHal";
-    protected static final boolean DEBUG = false;
+    protected static final boolean DEBUG = true;
 
     @IntDef({ FILTER_TYPE_OTHER, FILTER_TYPE_AUDIO, FILTER_TYPE_VIDEO, FILTER_TYPE_PCR })
     @Retention(RetentionPolicy.SOURCE)
@@ -40,16 +40,27 @@ public abstract class TunerHal implements AutoCloseable {
     public static final int FILTER_TYPE_VIDEO = 2;
     public static final int FILTER_TYPE_PCR = 3;
 
-    @StringDef({ MODULATION_8VSB, MODULATION_QAM256 })
+    @StringDef({ MODULATION_8VSB, MODULATION_QAM256, MODULATION_QPSK, MODULATION_8PSK })
     @Retention(RetentionPolicy.SOURCE)
     public @interface ModulationType {}
     public static final String MODULATION_8VSB = "8VSB";
     public static final String MODULATION_QAM256 = "QAM256";
+    public static final String MODULATION_QPSK = "QPSK";
+    public static final String MODULATION_8PSK = "8PSK";
+    
 
     public static final int TUNER_TYPE_BUILT_IN = 1;
     public static final int TUNER_TYPE_USB = 2;
 
     protected static final int PID_PAT = 0;
+    protected static final int PID_SDT = 0x11;
+	private static final byte TABLE_ID_PAT = (byte) 0x00;
+    private static final byte TABLE_ID_CAT = (byte) 0x01;
+    private static final byte TABLE_ID_PMT = (byte) 0x02;
+    private static final byte TABLE_ID_MGT = (byte) 0xc7;
+    private static final byte TABLE_ID_SDT_ACTUAL = (byte) 0x42;
+    private static final byte TABLE_ID_SDT_OTHER = (byte) 0x46;
+
     protected static final int PID_ATSC_SI_BASE = 0x1ffb;
     protected static final int DEFAULT_VSB_TUNE_TIMEOUT_MS = 2000;
     protected static final int DEFAULT_QAM_TUNE_TIMEOUT_MS = 4000; // Some device takes time for
@@ -163,9 +174,43 @@ public abstract class TunerHal implements AutoCloseable {
         }
         return false;
     }
+    
+    public synchronized boolean tune(DeliverySystem deliverySystem, int frequency, 
+				String polarization, int symbolRate, String fec, 
+				double rolloff, @ModulationType String modulation) {
+			
+		if (!isDeviceOpen()) {
+            Log.e(TAG, "There's no available device");
+            return false;
+        }
+        if (mIsStreaming) {
+            nativeCloseAllPidFilters(getDeviceId());
+            mIsStreaming = false;
+        }
+        if (nativeTuneDVB(getDeviceId(), deliverySystem.ordinal(),  frequency, polarization, symbolRate, fec, rolloff, modulation, 8000)) {
+			Log.d(TAG, "nativeTuneDVB Success");
+            addPidFilter(PID_PAT, FILTER_TYPE_OTHER);
+            addPidFilter(PID_SDT, FILTER_TYPE_OTHER);
+            //addSectionFilter(PID_PAT, 0x00);
+            //addSectionFilter(PID_SDT, 0x42);
+            mFrequency = frequency;
+            mModulation = modulation;
+            mIsStreaming = true;
+            return true;
+        }
+        Log.d(TAG, "nativeTuneDVB Fail");
+        return false;
 
+	
+	}
+				
     protected native boolean nativeTune(long deviceId, int frequency,
             @ModulationType String modulation, int timeout_ms);
+
+	protected native boolean nativeTuneDVB(long deviceId, int deliverySystem, int frequency, 
+				String polarization, int symbolRate, String fec, 
+				double rolloff, String modulation,int timeout_ms);
+
 
     /**
      * Sets a pid filter. This should be set after setting a channel.
@@ -189,6 +234,21 @@ public abstract class TunerHal implements AutoCloseable {
     protected native void nativeAddPidFilter(long deviceId, int pid, @FilterType int filterType);
     protected native void nativeCloseAllPidFilters(long deviceId);
     protected native void nativeSetHasPendingTune(long deviceId, boolean hasPendingTune);
+
+    public synchronized boolean addSectionFilter(int pid, int tid) {
+        if (!isDeviceOpen()) {
+            Log.e(TAG, "There's no available device");
+            return false;
+        }
+        if (pid >= 0 && pid <= 0x1fff) {
+			Log.d(TAG, "Calling nativeAddSectionFilter");
+            nativeAddSectionFilter(getDeviceId(), pid, tid);
+            return true;
+        }
+        return false;
+    }
+	protected native void nativeAddSectionFilter(long deviceId, int pid, int tid);
+
 
     /**
      * Stops current tuning. The tuner device and pid filters will be reset by this call and make

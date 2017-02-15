@@ -24,7 +24,7 @@ import android.util.Log;
  */
 public class TunerDebug {
     private static final String TAG = "TunerDebug";
-    public static final boolean ENABLED = false;
+    public static final boolean ENABLED = true;
 
     private int mVideoFrameDrop;
     private int mBytesInQueue;

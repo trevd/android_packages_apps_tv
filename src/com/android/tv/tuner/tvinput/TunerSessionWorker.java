@@ -79,7 +79,7 @@ public class TunerSessionWorker implements PlaybackBufferListener,
         MpegTsPlayer.VideoEventListener, MpegTsPlayer.Listener, EventDetector.EventListener,
         ChannelDataManager.ProgramInfoListener, Handler.Callback {
     private static final String TAG = "TunerSessionWorker";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     private static final boolean ENABLE_PROFILER = true;
     private static final String PLAY_FROM_CHANNEL = "channel";
 

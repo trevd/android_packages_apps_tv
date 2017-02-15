@@ -38,7 +38,7 @@ import java.util.Set;
  */
 public class EventDetector {
     private static final String TAG = "EventDetector";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     public static final int ALL_PROGRAM_NUMBERS = -1;
 
     private final TunerHal mTunerHal;
@@ -65,7 +65,32 @@ public class EventDetector {
                 }
             }
         }
+        @Override
+        public void onSdtItemDetected(PsipData.SdtItem sdtItem, List<PsiData.PmtItem> pmtItems) {
+			
+			 if (DEBUG) {
+                Log.d(TAG, "onSdtDetected VCT " + sdtItem);
+                Log.d(TAG, "                PMT " + pmtItems);
+            }
 
+            
+        }
+		@Override
+		public void onPmtParsed(int programNumber, List<PsiData.PmtItem> pmtItems) {
+			if (DEBUG) {
+                Log.d(TAG, "onPmtParsed " + programNumber);
+                Log.d(TAG, "                PMT " + pmtItems);
+            }
+			TunerChannel tunerChannel = new TunerChannel(programNumber, pmtItems);
+            tunerChannel.setFrequency(mFrequency);
+            tunerChannel.setModulation(mModulation);
+			mChannelMap.put(tunerChannel.getProgramNumber(), tunerChannel);
+            if (mEventListener != null) {
+                mEventListener.onChannelDetected(tunerChannel, false);
+            }
+		}
+        
+		
         @Override
         public void onEitPidDetected(int pid) {
             startListening(pid);
@@ -161,6 +186,7 @@ public class EventDetector {
             if (!found) {
                 mVctProgramNumberSet.add(channelProgramNumber);
             }
+            
             if (mEventListener != null) {
                 mEventListener.onChannelDetected(tunerChannel, !found);
             }

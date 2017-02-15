@@ -557,11 +557,16 @@ public class ChannelDataManager implements Handler.Callback {
         values.put(TvContract.Channels.COLUMN_INTERNAL_PROVIDER_DATA, channel.toByteArray());
         values.put(TvContract.Channels.COLUMN_DESCRIPTION, channel.getDescription());
         values.put(TvContract.Channels.COLUMN_INTERNAL_PROVIDER_FLAG1, VERSION);
-
+        
+		Log.d(TAG,"channelId=" + channelId);
+		Log.d(TAG,"channel.getModulation()=" + channel.getModulation());
+		Log.d(TAG,"channel.getFrequency=" + channel.getFrequency());
+		
+		
         if (channelId <= 0) {
             values.put(TvContract.Channels.COLUMN_INPUT_ID, mInputId);
             values.put(TvContract.Channels.COLUMN_TYPE, "QAM256".equals(channel.getModulation())
-                    ? TvContract.Channels.TYPE_ATSC_C : TvContract.Channels.TYPE_ATSC_T);
+                    ? TvContract.Channels.TYPE_DVB_S : TvContract.Channels.TYPE_DVB_S);
             values.put(TvContract.Channels.COLUMN_SERVICE_ID, channel.getProgramNumber());
 
             // ATSC doesn't have original_network_id

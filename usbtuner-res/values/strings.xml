@@ -102,6 +102,8 @@
         <!-- Signal for cable television channels -->
         <item>Cable</item>
         <!-- Not sure what type of connection is provided for channel scanning -->
+        <item>Satellite</item>
+        <!-- Not sure what type of connection is provided for channel scanning -->
         <item>Not sure</item>
         <item translatable="false">Development only</item>
     </string-array>

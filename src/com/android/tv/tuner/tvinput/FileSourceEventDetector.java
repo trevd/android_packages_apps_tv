@@ -24,6 +24,7 @@ import com.android.tv.tuner.data.PsiData.PatItem;
 import com.android.tv.tuner.data.PsiData.PmtItem;
 import com.android.tv.tuner.data.PsipData.EitItem;
 import com.android.tv.tuner.data.PsipData.VctItem;
+import com.android.tv.tuner.data.PsipData.SdtItem;
 import com.android.tv.tuner.data.Track.AtscAudioTrack;
 import com.android.tv.tuner.data.Track.AtscCaptionTrack;
 import com.android.tv.tuner.data.TunerChannel;
@@ -108,6 +109,12 @@ public class FileSourceEventDetector {
                 }
             }
         }
+        @Override
+        public void onSdtItemDetected(SdtItem items,List<PmtItem> pmtItems) {
+		}
+        @Override
+        public void onPmtParsed(int programNumber, List<PmtItem> pmtItems) {
+		}
 
         @Override
         public void onEitPidDetected(int pid) {

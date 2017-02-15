@@ -25,6 +25,7 @@ import android.util.SparseArray;
 import com.android.tv.tuner.data.Channel;
 import com.android.tv.tuner.data.PsiData.PatItem;
 import com.android.tv.tuner.data.PsiData.PmtItem;
+import com.android.tv.tuner.data.PsipData.SdtItem;
 import com.android.tv.tuner.data.PsipData.Ac3AudioDescriptor;
 import com.android.tv.tuner.data.PsipData.CaptionServiceDescriptor;
 import com.android.tv.tuner.data.PsipData.ContentAdvisoryDescriptor;
@@ -38,6 +39,7 @@ import com.android.tv.tuner.data.PsipData.PsipSection;
 import com.android.tv.tuner.data.PsipData.RatingRegion;
 import com.android.tv.tuner.data.PsipData.RegionalRating;
 import com.android.tv.tuner.data.PsipData.TsDescriptor;
+import com.android.tv.tuner.data.PsipData.ServiceDescriptor;
 import com.android.tv.tuner.data.PsipData.VctItem;
 import com.android.tv.tuner.data.Track.AtscAudioTrack;
 import com.android.tv.tuner.data.Track.AtscCaptionTrack;
@@ -58,11 +60,15 @@ import java.util.List;
  */
 public class SectionParser {
     private static final String TAG = "SectionParser";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private static final byte TABLE_ID_PAT = (byte) 0x00;
+    private static final byte TABLE_ID_CAT = (byte) 0x01;
     private static final byte TABLE_ID_PMT = (byte) 0x02;
     private static final byte TABLE_ID_MGT = (byte) 0xc7;
+    private static final byte TABLE_ID_SDT_ACTUAL = (byte) 0x42;
+    private static final byte TABLE_ID_SDT_OTHER = (byte) 0x46;
+    
     private static final byte TABLE_ID_TVCT = (byte) 0xc8;
     private static final byte TABLE_ID_CVCT = (byte) 0xc9;
     private static final byte TABLE_ID_EIT = (byte) 0xcb;
@@ -75,6 +81,13 @@ public class SectionParser {
     public static final int DESCRIPTOR_TAG_AC3_AUDIO_STREAM = 0x81;
     public static final int DESCRIPTOR_TAG_EXTENDED_CHANNEL_NAME = 0xa0;
     public static final int DESCRIPTOR_TAG_GENRE = 0xab;
+    
+    
+    // DVB descriptors see ETSI EN 300 468
+    public static final int DESCRIPTOR_TAG_SERVICE = 0X48;
+ 
+    
+    
 
     private static final byte COMPRESSION_TYPE_NO_COMPRESSION = (byte) 0x00;
     private static final byte MODE_SELECTED_UNICODE_RANGE_1 = (byte) 0x00;  // 0x0000 - 0x00ff
@@ -90,6 +103,8 @@ public class SectionParser {
     // See https://developer.android.com/reference/android/media/tv/TvContentRating.html.
     private static final String RATING_REGION_RATING_SYSTEM_US_TV = "US_TV";
     private static final String RATING_REGION_RATING_SYSTEM_KR_TV = "KR_TV";
+    
+    
 
     private static final String[] RATING_REGION_TABLE_US_TV = {
         "US_TV_Y", "US_TV_Y7", "US_TV_G", "US_TV_PG", "US_TV_14", "US_TV_MA"
@@ -324,6 +339,7 @@ public class SectionParser {
     private final SparseArray<List<EttItem>> mParsedEttItems = new SparseArray<>();
 
     public interface OutputListener {
+        void onSdtParsed(List<SdtItem> items);
         void onPatParsed(List<PatItem> items);
         void onPmtParsed(int programNumber, List<PmtItem> items);
         void onMgtParsed(List<MgtItem> items);
@@ -352,7 +368,7 @@ public class SectionParser {
                 break;
             }
             if (DEBUG) {
-                Log.d(TAG, "parseSections 0x" + Integer.toHexString(data.byteAt(pos) & 0xff));
+                Log.d(TAG, "parseSections 0x" + Integer.toHexString(data.byteAt(pos) & 0xff) + " Length=" + sectionLength);
             }
             parseSection(Arrays.copyOfRange(data.buffer(), pos, pos + sectionLength));
             pos += sectionLength;
@@ -389,6 +405,7 @@ public class SectionParser {
         if (oldVersionNumber != null && versionNumber == oldVersionNumber) {
             return;
         }
+        Log.d(TAG, "parseSection TABLE_ID=" + data[0]);
         boolean result = false;
         switch (data[0]) {
             case TABLE_ID_PAT:
@@ -396,6 +413,10 @@ public class SectionParser {
                 break;
             case TABLE_ID_PMT:
                 result = parsePMT(data);
+                break;
+            case TABLE_ID_SDT_ACTUAL:
+            //case TABLE_ID_SDT_OTHER:
+                result = parseSDT(data);
                 break;
             case TABLE_ID_MGT:
                 result = parseMGT(data);
@@ -417,7 +438,46 @@ public class SectionParser {
             mSectionVersionMap.put(section, versionNumber);
         }
     }
+	private boolean parseCAT(byte[] data) {
+        if (DEBUG) {
+            Log.d(TAG, "CAT is discovered.");
+        }
+        return false;
+	}
+	
 
+	private boolean parseSDT(byte[] data) {
+        if (DEBUG) {
+            Log.d(TAG, "SDT is discovered.");
+        }
+        int pos = 0 ;
+		//for (; pos < data.length; pos = pos + 1) {
+		//	Log.d(TAG, "SDT data[" + pos + "]=" +  Integer.toHexString(data[pos]));
+		//}
+		pos = 11;
+		List<SdtItem> results = new ArrayList<>();
+		while ( pos < data.length-4) {
+			int serviceId = ((data[pos] & 0xff) << 8)
+					| (data[pos+1] & 0xff);
+			Log.d(TAG, "SDT serviceId="+ serviceId + "[0x" + Integer.toHexString(serviceId) + "]");
+			pos += 3;
+			int descriptorsLoopLength = ((data[pos] & 0xf) << 8) | (data[pos+1] & 0xff);
+			Log.d(TAG, "SDT descriptorsLoopLength="+ descriptorsLoopLength + "[0x" + Integer.toHexString(descriptorsLoopLength) + "]");
+			pos +=2;
+			List<TsDescriptor> descriptors = parseDescriptors(data, pos, pos + descriptorsLoopLength + 2);
+		
+			//int descriptorsLoopEnd = descriptorsLoopLength;
+			//if (descriptorsLoopEnd >= table.fullTable.length) {
+			//pos += 2;
+			pos += descriptorsLoopLength ;
+			
+			results.add(new SdtItem(serviceId, generateServiceDescriptors(descriptors)));
+		}
+           if (mListener != null) {
+            mListener.onSdtParsed(results);
+        }
+        return true;
+	}
     private boolean parsePAT(byte[] data) {
         if (DEBUG) {
             Log.d(TAG, "PAT is discovered.");
@@ -431,7 +491,13 @@ public class SectionParser {
                 return false;
             }
             int programNo = ((data[pos] & 0xff) << 8) | (data[pos + 1] & 0xff);
+            
             int pmtPid = ((data[pos + 2] & 0x1f) << 8) | (data[pos + 3] & 0xff);
+            if ( programNo == 0 ) {
+				if (DEBUG) {
+					Log.d(TAG, "NIT PID in PAT is =" + pmtPid);
+				}
+			}
             results.add(new PatItem(programNo, pmtPid));
         }
         if (mListener != null) {
@@ -445,13 +511,17 @@ public class SectionParser {
         if (DEBUG) {
             Log.d(TAG, "PMT is discovered. programNo = " + table_id_ext);
         }
+        int pos = 0 ;
+        for (; pos < data.length; pos = pos + 1) {
+			Log.d(TAG, "PAT data[" + pos + "]=" +  Integer.toHexString(data[pos]));
+		}
         if (data.length <= 11) {
             Log.e(TAG, "Broken PMT.");
             return false;
         }
         int pcrPid = (data[8] & 0x1f) << 8 | data[9];
         int programInfoLen = (data[10] & 0x0f) << 8 | data[11];
-        int pos = 12;
+        pos = 12;
         List<TsDescriptor> descriptors = parseDescriptors(data, pos, pos + programInfoLen);
         pos += programInfoLen;
         if (DEBUG) {
@@ -464,8 +534,14 @@ public class SectionParser {
                 return false;
             }
             int streamType = data[pos] & 0xff;
+            if (DEBUG) {
+				Log.d(TAG, "PMT streamType: " + streamType);
+			}
             int esPid = (data[pos + 1] & 0x1f) << 8 | (data[pos + 2] & 0xff);
             int esInfoLen = (data[pos + 3] & 0xf) << 8 | (data[pos + 4] & 0xff);
+            if (DEBUG) {
+				Log.d(TAG, "PMT esPid: " + esPid + " esInfoLen: " + esInfoLen);
+			}
             if (data.length < pos + esInfoLen + 5) {
                 Log.e(TAG, "Broken PMT.");
                 return false;
@@ -775,6 +851,17 @@ public class SectionParser {
         return tracks;
     }
 
+    private static List<ServiceDescriptor> generateServiceDescriptors(List<TsDescriptor> descriptors) {
+        List<ServiceDescriptor> services = new ArrayList<>();
+        for (TsDescriptor descriptor : descriptors) {
+            if (descriptor instanceof ServiceDescriptor) {
+                ServiceDescriptor serviceDescriptor = (ServiceDescriptor) descriptor;
+                services.add(serviceDescriptor);
+            }
+        }
+        return services;
+    }
+
     private static List<AtscCaptionTrack> generateCaptionTracks(List<TsDescriptor> descriptors) {
         List<AtscCaptionTrack> services = new ArrayList<>();
         for (TsDescriptor descriptor : descriptors) {
@@ -852,6 +939,9 @@ public class SectionParser {
     private static List<TsDescriptor> parseDescriptors(byte[] data, int offset, int limit) {
         // For details of the structure for descriptors, see ATSC A/65 Section 6.9.
         List<TsDescriptor> descriptors = new ArrayList<>();
+		if (DEBUG) {
+			Log.d(TAG, "parseDescriptors data.length="+ data.length + " limit="+ limit + " offset="+ offset);
+		}
         if (data.length < limit) {
             return descriptors;
         }
@@ -870,6 +960,10 @@ public class SectionParser {
             }
             TsDescriptor descriptor = null;
             switch (tag) {
+				case DESCRIPTOR_TAG_SERVICE:
+                    descriptor = parseServiceDescriptor(data, pos, pos + length + 2);
+                    break;
+
                 case DESCRIPTOR_TAG_CONTENT_ADVISORY:
                     descriptor = parseContentAdvisory(data, pos, pos + length + 2);
                     break;
@@ -906,6 +1000,32 @@ public class SectionParser {
         }
         return descriptors;
     }
+
+    private static ServiceDescriptor parseServiceDescriptor(byte[] data, int pos, int limit) {
+        // For the details of the DVB Service Descriptor table 
+        // see ETSI EN 300 468 V1.13.1 Table 86
+        pos += 2;
+		int serviceType = data[pos];
+		Log.d(TAG,"parseServiceDescriptor serviceType=" + serviceType);
+		int serviceProviderNameLength = data[pos+1];
+		Log.d(TAG,"parseServiceDescriptor serviceProviderNameLength=" + serviceProviderNameLength);
+		pos += 2;
+		String serviceProviderName = new String(data, pos, serviceProviderNameLength);
+		Log.d(TAG,"parseServiceDescriptor serviceProviderName=" + serviceProviderName);
+		pos += serviceProviderNameLength;
+        
+        int serviceNameLength = data[pos];
+        Log.d(TAG,"parseServiceDescriptor serviceNameLength=" + serviceNameLength);
+        pos += 1;
+		String serviceName = new String(data, pos, serviceNameLength);
+		Log.d(TAG,"parseServiceDescriptor serviceName=" + serviceName);
+		pos += serviceNameLength;
+        
+        
+
+        return new ServiceDescriptor(serviceType,serviceProviderName,serviceName);
+    }
+
 
     private static Iso639LanguageDescriptor parseIso639Language(byte[] data, int pos, int limit) {
         // For the details of the structure of ISO 639 language descriptor,

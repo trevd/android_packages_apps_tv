@@ -23,10 +23,12 @@ import com.google.android.exoplayer.C;
 import com.google.android.exoplayer.upstream.DataSpec;
 import com.android.tv.common.SoftPreconditions;
 import com.android.tv.tuner.ChannelScanFileParser;
+import com.android.tv.tuner.ChannelScanFileParser.ScanChannel.DeliverySystem;
 import com.android.tv.tuner.TunerHal;
 import com.android.tv.tuner.TunerPreferences;
 import com.android.tv.tuner.data.TunerChannel;
 import com.android.tv.tuner.tvinput.EventDetector;
+import com.android.tv.tuner.ts.TsParser;
 import com.android.tv.tuner.tvinput.EventDetector.EventListener;
 
 import java.io.IOException;
@@ -125,6 +127,7 @@ public class TunerTsStreamer implements TsStreamer {
 
     @Override
     public boolean startStream(TunerChannel channel) {
+		Log.d(TAG, "Streaming started");
         if (mTunerHal.tune(channel.getFrequency(), channel.getModulation())) {
             if (channel.hasVideo()) {
                 mTunerHal.addPidFilter(channel.getVideoPid(),
@@ -170,8 +173,8 @@ public class TunerTsStreamer implements TsStreamer {
         return false;
     }
 
-    @Override
-    public boolean startStream(ChannelScanFileParser.ScanChannel channel) {
+    
+    private boolean startATSCStream(ChannelScanFileParser.ScanChannel channel) {
         if (mTunerHal.tune(channel.frequency, channel.modulation)) {
             mEventDetector.startDetecting(
                     channel.frequency, channel.modulation, EventDetector.ALL_PROGRAM_NUMBERS);
@@ -191,6 +194,40 @@ public class TunerTsStreamer implements TsStreamer {
             return true;
         }
         return false;
+    }
+        
+    private boolean startDVBStream(ChannelScanFileParser.ScanChannel channel) {
+        if (mTunerHal.tune(channel.deliverySystem, channel.frequency, channel.polarization, channel.symbolRate, channel.fec, channel.rolloff, channel.modulation)) {
+		    mEventDetector.startDetecting(
+                    channel.frequency, channel.modulation, EventDetector.ALL_PROGRAM_NUMBERS);
+            synchronized (mCircularBufferMonitor) {
+                if (mStreaming) {
+                    Log.w(TAG, "Streaming should be stopped before start streaming");
+                    return true;
+                }
+                mStreaming = true;
+                mBytesFetched = 0;
+                mLastReadPosition.set(0L);
+                mEndOfStreamSent = false;
+            }
+            mStreamingThread = new StreamingThread();
+            mStreamingThread.start();
+            Log.i(TAG, "Streaming started");
+			return true;
+        }
+        return false;
+    }
+    
+    
+    @Override
+    public boolean startStream(ChannelScanFileParser.ScanChannel channel) {
+		if (channel.deliverySystem == DeliverySystem.DELIVERY_SYSTEM_ATSC) { 
+			return startATSCStream(channel);
+		} else {
+			Log.d(TAG, "Start Stream For DVBS");
+			return startDVBStream(channel);
+		}
+        //return false;
     }
 
     /**
@@ -263,7 +300,7 @@ public class TunerTsStreamer implements TsStreamer {
         public void run() {
             // Buffers for streaming data from the tuner and the internal buffer.
             byte[] dataBuffer = new byte[READ_BUFFER_SIZE];
-
+			
             while (true) {
                 synchronized (mCircularBufferMonitor) {
                     if (!mStreaming) {
@@ -272,6 +309,7 @@ public class TunerTsStreamer implements TsStreamer {
                 }
 
                 int bytesWritten = mTunerHal.readTsStream(dataBuffer, dataBuffer.length);
+                Log.d(TAG, "mTunerHal.readTsStream bytesWritten=" + bytesWritten);
                 if (bytesWritten <= 0) {
                     try {
                         // When buffer is underrun, we sleep for short time to prevent

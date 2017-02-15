@@ -70,6 +70,27 @@ Java_com_android_tv_tuner_TunerHal_nativeTune
 
 /*
  * Class:     com_android_tv_tuner_TunerHal
+ * Method:    nativeTune
+ * Signature: (JILjava/lang/String;)Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_android_tv_tuner_TunerHal_nativeTuneDVB
+(JNIEnv *env, jobject thiz, jlong deviceId, jint deliverysystem, jint frequency, jstring polarizationStr, jint symbolrate, jstring fecStr, jdouble rolloff, jstring modulationStr, jint timeout_ms) {
+	std::map<jlong, DvbManager *>::iterator it = sDvbManagers.find(deviceId);
+	DvbManager *dvbManager;
+    if (it == sDvbManagers.end()) {
+        dvbManager = new DvbManager(env, thiz);
+        sDvbManagers.insert(std::pair<jlong, DvbManager *>(deviceId, dvbManager));
+    } else {
+        dvbManager = it->second;
+    }
+    int res = dvbManager->tuneDVB(env, thiz,
+           deliverysystem, frequency, env->GetStringUTFChars(polarizationStr, 0), symbolrate,  env->GetStringUTFChars(fecStr, 0), rolloff, env->GetStringUTFChars(modulationStr, 0) ,timeout_ms);
+    return (res == 0);
+}
+
+/*
+ * Class:     com_android_tv_tuner_TunerHal
  * Method:    nativeCloseAllPidFilters
  * Signature: (J)V
  */
@@ -106,6 +127,20 @@ Java_com_android_tv_tuner_TunerHal_nativeAddPidFilter
     std::map<jlong, DvbManager *>::iterator it = sDvbManagers.find(deviceId);
     if (it != sDvbManagers.end()) {
         it->second->startTsPidFilter(env, thiz, pid, filterType);
+    }
+}
+
+/*
+ * Class:     com_android_tv_tuner_TunerHal
+ * Method:    nativeAddSectionFilter
+ * Signature: (JII)V
+ */
+JNIEXPORT void JNICALL
+Java_com_android_tv_tuner_TunerHal_nativeAddSectionFilter
+(JNIEnv *env, jobject thiz, jlong deviceId, jint pid, jint tid) {
+    std::map<jlong, DvbManager *>::iterator it = sDvbManagers.find(deviceId);
+    if (it != sDvbManagers.end()) {
+        it->second->startSectionFilter(env, thiz, pid, tid);
     }
 }
 

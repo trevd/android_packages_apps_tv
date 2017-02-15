@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ScanFragment extends SetupFragment {
     private static final String TAG = "ScanFragment";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     // In the fake mode, the connection to antenna or cable is not necessary.
     // Instead dummy channels are added.
     private static final boolean FAKE_MODE = false;
@@ -390,7 +390,7 @@ public class ScanFragment extends SetupFragment {
                             tunerChannel.getProgramNumber()));
                     tunerChannel.setVirtualMajor(scanChannel.radioFrequencyNumber);
                     tunerChannel.setVirtualMinor(tunerChannel.getProgramNumber());
-                    onChannelDetected(tunerChannel, true);
+                    //onChannelDetected(tunerChannel, true);
                 }
             }
         }

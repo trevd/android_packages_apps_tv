@@ -81,6 +81,26 @@ JNIEXPORT jint JNICALL Java_com_android_tv_tuner_TunerHal_nativeWriteInBuffer
 JNIEXPORT void JNICALL Java_com_android_tv_tuner_TunerHal_nativeSetHasPendingTune
   (JNIEnv *, jobject, jlong, jboolean);
 
+
+/*
+ * Class:     com_android_tv_tuner_TunerHal
+ * Method:    nativeTune
+ * Signature: (JILjava/lang/String;)Z
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_android_tv_tuner_TunerHal_nativeTuneDVB
+(JNIEnv *env, jobject thiz, jlong deviceId, jint deliverysystem, jint frequency, jstring polarizationStr, jint symbolrate, jstring fecStr, jdouble rolloff, jstring modulationStr, jint timeout_ms);
+
+/*
+ * Class:     com_android_tv_tuner_TunerHal
+ * Method:    nativeAddSectionFilter
+ * Signature: (JII)V
+ */
+JNIEXPORT void JNICALL
+Java_com_android_tv_tuner_TunerHal_nativeAddSectionFilter
+(JNIEnv *env, jobject thiz, jlong deviceId, jint pid, jint tid);
+
+
 #ifdef __cplusplus
 }
 #endif

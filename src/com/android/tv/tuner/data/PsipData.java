@@ -152,7 +152,23 @@ public class PsipData {
             return mTableTypePid;
         }
     }
+	public static class SdtItem {
+		
+		private final int mServiceId;
+		private final List<ServiceDescriptor> mServices;
+		public SdtItem(int serviceId, List<ServiceDescriptor> services) {
+			mServiceId = serviceId;
+			mServices = services;
+		}
+		 public int getServiceId() {
+            return mServiceId;
+        }
+		public  List<ServiceDescriptor>  getServices() {
+            return mServices;
+        }
 
+		
+	}
     public static class VctItem {
         private final String mShortName;
         private final String mLongName;
@@ -462,6 +478,41 @@ public class PsipData {
         }
     }
 
+	public static class ServiceDescriptor extends TsDescriptor {
+        private final int mServiceType;
+        private final String mServiceProviderName;
+        private final String mServiceName;
+
+        public ServiceDescriptor(int serviceType, String serviceProviderName, String serviceName) {
+            mServiceType = serviceType;
+            mServiceProviderName = serviceProviderName;
+            mServiceName = serviceName;
+        }
+		
+		public String getServiceProviderName() {
+            return mServiceProviderName;
+        }
+
+        public String getServiceName() {
+            return mServiceName;
+        }
+
+         
+        public int getServiceType() {
+            return mServiceType;
+        }
+
+
+        @Override
+        public int getTag() {
+            return SectionParser.DESCRIPTOR_TAG_SERVICE;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%s ServiceType=%d ServiceProviderName=%s ServiceName=%s ", getClass().getName(),mServiceType, mServiceProviderName, mServiceName);
+        }
+    }
     public static class RatingRegion {
         private final int mName;
         private final String mDescription;

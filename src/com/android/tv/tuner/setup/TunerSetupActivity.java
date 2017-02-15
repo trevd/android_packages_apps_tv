@@ -62,6 +62,7 @@ public class TunerSetupActivity extends SetupActivity {
     private static final int CHANNEL_MAP_SCAN_FILE[] = {
             R.raw.ut_us_atsc_center_frequencies_8vsb,
             R.raw.ut_us_cable_standard_center_frequencies_qam256,
+            R.raw.ut_eu_satellite_astra_s28e2_frequencies_dvbs,
             R.raw.ut_us_all,
             R.raw.ut_kr_atsc_center_frequencies_8vsb,
             R.raw.ut_kr_cable_standard_center_frequencies_qam256,

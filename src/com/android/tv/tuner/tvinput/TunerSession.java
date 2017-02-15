@@ -54,7 +54,7 @@ import com.android.tv.tuner.util.SystemPropertiesProxy;
  */
 public class TunerSession extends TvInputService.Session implements Handler.Callback {
     private static final String TAG = "TunerSession";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     private static final String USBTUNER_SHOW_DEBUG = "persist.tv.tuner.show_debug";
 
     public static final int MSG_UI_SHOW_MESSAGE = 1;

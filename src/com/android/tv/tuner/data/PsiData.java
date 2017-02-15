@@ -87,8 +87,8 @@ public class PsiData {
 
         @Override
         public String toString() {
-            return String.format("Stream Type: %x ES Pid: %x AudioTracks: %s CaptionTracks: %s",
-                    mStreamType, mEsPid, mAudioTracks, mCaptionTracks);
+            return String.format("Stream Type: %x ES Pid: %d [%x] AudioTracks: %s CaptionTracks: %s",
+                    mStreamType, mEsPid, mEsPid, mAudioTracks, mCaptionTracks);
         }
     }
 }

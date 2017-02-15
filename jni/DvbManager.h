@@ -45,6 +45,7 @@ class DvbManager {
     int mDemuxFd;
     int mDvrFd;
     int mPatFilterFd;
+    
     bool mFeHasLock;
     // Flag for pending tune request. Used for canceling the current tune operation.
     bool volatile mHasPendingTune;
@@ -65,13 +66,16 @@ public:
     int startTsPidFilter(JNIEnv *env, jobject thiz, int pid, int filterType);
     void closeAllDvbPidFilter();
     void setHasPendingTune(bool hasPendingTune);
-
+	int tuneDVB(JNIEnv *env, jobject thiz, const int deliverysystem, const int frequency, const char *polarizationStr, int symbolrate, const char *fecStr, const double rolloff, const char *modulationStr, int timeout_ms) ;
+	int startSectionFilter(JNIEnv *env, jobject thiz, int pid, int tid);
 private:
     int openDvbFe(JNIEnv *env, jobject thiz);
     int openDvbDvr(JNIEnv *env, jobject thiz);
+    int openDvbDemux(JNIEnv *env, jobject thiz);
     void closePatFilter();
     void closeDvbFe();
     void closeDvbDvr();
+    void closeDvbDemux();
     void reset();
     void resetExceptFe();
     bool isFeLocked();
@@ -79,6 +83,12 @@ private:
     int openDvbFeFromSystemApi(JNIEnv *env, jobject thiz);
     int openDvbDemuxFromSystemApi(JNIEnv *env, jobject thiz);
     int openDvbDvrFromSystemApi(JNIEnv *env, jobject thiz);
+    
+    // DVB API V5 Helpers
+    int clearDvbCmdSeq();
+    int tuneV5(unsigned int ifreq, unsigned int sr, unsigned int delsys,
+		    unsigned int modulation,  unsigned int  v,  unsigned int  fec, unsigned int rolloff);
 };
+
 
 #endif  // DVB_MANAGER_H_

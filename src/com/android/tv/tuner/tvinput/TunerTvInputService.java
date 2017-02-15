@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 public class TunerTvInputService extends TvInputService
         implements AudioCapabilitiesReceiver.Listener{
     private static final String TAG = "TunerTvInputService";
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private static final String MAX_BUFFER_SIZE_KEY = "tv.tuner.buffersize_mbytes";
     private static final int MAX_BUFFER_SIZE_DEF = 2 * 1024;  // 2GB
