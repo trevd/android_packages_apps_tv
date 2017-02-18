@@ -81,7 +81,17 @@ int DvbManager::tune(JNIEnv *env, jobject thiz,
     struct dvb_frontend_parameters feParams;
     memset(&feParams, 0, sizeof(struct dvb_frontend_parameters));
     feParams.frequency = frequency;
-    if (strcmp(modulationStr, "8VSB") == 0) {
+    fe_sec_voltage voltage = SEC_VOLTAGE_OFF;
+    if (strncmp(modulationStr,"QPSK",4) == 0) {
+		char* params = (char*)modulationStr+4;
+		voltage = (fe_sec_voltage)atoi(params+9);
+		params[9] = 0;
+		feParams.u.qpsk.fec_inner = (fe_code_rate)atoi(params+8);
+		params[8] = 0;
+		feParams.u.qpsk.symbol_rate = atoi(params);
+		ALOGD("sr=%d fec=%d v=%d", feParams.u.qpsk.symbol_rate,
+				feParams.u.qpsk.fec_inner, voltage);
+	} else if (strcmp(modulationStr, "8VSB") == 0) {
         feParams.u.vsb.modulation = VSB_8;
     } else if (strcmp(modulationStr, "QAM256") == 0) {
         feParams.u.vsb.modulation = QAM_256;
@@ -106,6 +116,14 @@ int DvbManager::tune(JNIEnv *env, jobject thiz,
             feParams.inversion = INVERSION_OFF;
         }
     }
+	//if(ioctl(mFeFd, FE_SET_TONE, tone) < 0) {
+		//	ALOGE("SET FE_SET_TONE");
+			//return -1;
+		//}
+		if(ioctl(mFeFd, FE_SET_VOLTAGE, voltage) < 0) {
+			ALOGE("SET VOLTAGE_FAILED");
+			//return -1;
+		}
 
     if (ioctl(mFeFd, FE_SET_FRONTEND, &feParams) != 0) {
         ALOGD("Can't set Frontend : %s", strerror(errno));

@@ -45,6 +45,7 @@ public abstract class TunerHal implements AutoCloseable {
     public @interface ModulationType {}
     public static final String MODULATION_8VSB = "8VSB";
     public static final String MODULATION_QAM256 = "QAM256";
+    public static final String MODULATION_QPSK= "QPSK";
 
     public static final int TUNER_TYPE_BUILT_IN = 1;
     public static final int TUNER_TYPE_USB = 2;
@@ -147,7 +148,9 @@ public abstract class TunerHal implements AutoCloseable {
         // device completely and the only thing necessary for tuning is reopening pid filters.
         if (mFrequency == frequency && Objects.equals(mModulation, modulation)) {
             addPidFilter(PID_PAT, FILTER_TYPE_OTHER);
-            addPidFilter(PID_ATSC_SI_BASE, FILTER_TYPE_OTHER);
+			if (!modulation.startsWith(MODULATION_QPSK)) {
+				addPidFilter(PID_ATSC_SI_BASE, FILTER_TYPE_OTHER);
+			}
             mIsStreaming = true;
             return true;
         }
@@ -155,7 +158,9 @@ public abstract class TunerHal implements AutoCloseable {
                 : DEFAULT_QAM_TUNE_TIMEOUT_MS;
         if (nativeTune(getDeviceId(), frequency, modulation, timeout_ms)) {
             addPidFilter(PID_PAT, FILTER_TYPE_OTHER);
-            addPidFilter(PID_ATSC_SI_BASE, FILTER_TYPE_OTHER);
+            if (!modulation.startsWith(MODULATION_QPSK)) {
+				addPidFilter(PID_ATSC_SI_BASE, FILTER_TYPE_OTHER);
+			}
             mFrequency = frequency;
             mModulation = modulation;
             mIsStreaming = true;
